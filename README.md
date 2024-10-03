@@ -16,7 +16,7 @@ $$
 The amplitude of a sample can be expressed as:
 
 $$
-sample = G \times \sum\limits_{i = 0}^{|A|} \sin( A_i \times 2 \pi \times F_i + \phi_i) \times \frac{1.0}{max(1.0, \sum_{a \in A} a)}
+sample = G \times \sum\limits_{i = 1}^{|A|} \sin( A_i \times 2 \pi \times F_i + \phi_i) \times \frac{1.0}{max(1.0, \sum_{a \in A} a)}
 $$
 
 where:
