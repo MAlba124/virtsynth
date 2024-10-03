@@ -3112,7 +3112,6 @@ dependencies = [
  "cpal",
  "eframe",
  "egui_plot",
- "image",
 ]
 
 [[package]]

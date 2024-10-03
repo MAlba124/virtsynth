@@ -7,7 +7,6 @@ edition = "2021"
 eframe = "0.29.0"
 egui_plot = "0.29.0"
 cpal = { version = "0.15.3", features = ["jack"] }
-image = { version = "0.25.2", default-features = false, features = ["png"] }
 
 [profile.dev]
 strip = "debuginfo"
