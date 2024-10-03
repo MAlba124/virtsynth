@@ -13,10 +13,10 @@ struct Envelope {
 impl Default for Envelope {
     fn default() -> Self {
         Self {
-            attack: 1.0,
+            attack: 0.2,
             decay: 1.0,
             sustain: 1.0,
-            release: 1.0,
+            release: 0.2,
         }
     }
 }
@@ -129,44 +129,57 @@ impl eframe::App for VirtSynth {
                             .allow_drag(false)
                             .show(ui, |plot_ui| plot_ui.line(line));
                     });
-                    cols[1].vertical_centered_justified(|ui| {
+                    cols[1].vertical(|ui| {
+                        ui.label("Envelope");
                         ui.horizontal(|ui| {
-                            // ui.label("Attack");
                             ui.add(
                                 Slider::new(&mut self.envelope.attack, 0.0..=1.0)
                                     .step_by(0.01)
+                                    .text("Attack")
+                                    .suffix("s")
                                     .orientation(egui::SliderOrientation::Vertical),
                             );
-                            // ui.label("Decay");
-                            ui.add(
-                                Slider::new(&mut self.envelope.decay, 0.0..=1.0)
-                                    .step_by(0.01)
-                                    .orientation(egui::SliderOrientation::Vertical),
+                            self.keyboard.attack.store(
+                                (std::u16::MAX as f32 * self.envelope.attack) as u16,
+                                std::sync::atomic::Ordering::Relaxed,
                             );
-                            // ui.label("Sustain");
-                            ui.add(
-                                Slider::new(&mut self.envelope.sustain, 0.0..=1.0)
-                                    .step_by(0.01)
-                                    .orientation(egui::SliderOrientation::Vertical),
-                            );
-                            // ui.label("Release");
+                            // TODO
+                            // Decay
+                            // ui.add(
+                            //     Slider::new(&mut self.envelope.decay, 0.0..=1.0)
+                            //         .step_by(0.01)
+                            //         .orientation(egui::SliderOrientation::Vertical),
+                            // );
+                            // Sustain
+                            // ui.add(
+                            //     Slider::new(&mut self.envelope.sustain, 0.0..=1.0)
+                            //         .step_by(0.01)
+                            //         .orientation(egui::SliderOrientation::Vertical),
+                            // );
                             ui.add(
                                 Slider::new(&mut self.envelope.release, 0.0..=1.0)
                                     .step_by(0.01)
+                                    .text("Release")
+                                    .suffix("s")
                                     .orientation(egui::SliderOrientation::Vertical),
                             );
+                            self.keyboard.release.store(
+                                (std::u16::MAX as f32 * self.envelope.release) as u16,
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
                         });
-                        let points = PlotPoints::from_ys_f32(&[
-                            0.0,
-                            self.envelope.attack,
-                            self.envelope.decay,
-                            self.envelope.sustain,
-                            self.envelope.release,
-                            0.0,
-                        ]);
-                        egui_plot::Plot::new("envelope").show(ui, |plot_ui| {
-                            plot_ui.polygon(egui_plot::Polygon::new(points))
-                        });
+                        // TODO
+                        // let points = PlotPoints::from_ys_f32(&[
+                        //     0.0,
+                        //     self.envelope.attack,
+                        //     self.envelope.decay,
+                        //     self.envelope.sustain,
+                        //     self.envelope.release,
+                        //     0.0,
+                        // ]);
+                        // egui_plot::Plot::new("envelope").show(ui, |plot_ui| {
+                        //     plot_ui.polygon(egui_plot::Polygon::new(points))
+                        // });
                     });
                 })
             });

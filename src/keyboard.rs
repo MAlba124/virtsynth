@@ -128,8 +128,8 @@ impl Iterator for KeyBitflags {
 pub struct Keyboard {
     gain: Arc<AtomicU16>,
     active_keys: Arc<AtomicUsize>,
-    attack: Arc<AtomicU16>,
-    release: Arc<AtomicU16>,
+    pub attack: Arc<AtomicU16>,
+    pub release: Arc<AtomicU16>,
     _synth: Synthesizer,
 }
 
