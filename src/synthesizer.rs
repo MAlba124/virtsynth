@@ -1,11 +1,14 @@
 use std::sync::{
-    atomic::{AtomicU16, AtomicUsize, Ordering},
+    atomic::{AtomicI32, AtomicU16, AtomicUsize, Ordering},
     Arc,
 };
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
-use crate::keyboard::Key;
+use crate::{
+    keyboard::Key,
+    waveform::{sin_to_square, Waveform},
+};
 
 const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
 
@@ -163,6 +166,7 @@ struct Synth {
     release_a: Arc<AtomicU16>,
     active_keys: Arc<AtomicUsize>,
     gain_a: Arc<AtomicU16>,
+    waveform_a: Arc<AtomicI32>,
 }
 
 impl Synth {
@@ -172,6 +176,7 @@ impl Synth {
         release_a: Arc<AtomicU16>,
         active_keys: Arc<AtomicUsize>,
         gain_a: Arc<AtomicU16>,
+        waveform_a: Arc<AtomicI32>,
     ) -> Self {
         Self {
             sample_rate,
@@ -181,6 +186,7 @@ impl Synth {
             release_a,
             active_keys,
             gain_a,
+            waveform_a,
         }
     }
 
@@ -189,11 +195,12 @@ impl Synth {
         self.key_tracker
             .update(self.active_keys.load(Ordering::Relaxed));
         self.key_tracker.adsr.attack =
-            self.attack_a.load(Ordering::Relaxed) as f32 / std::u16::MAX as f32;
+            self.attack_a.load(Ordering::Relaxed) as f32 / u16::MAX as f32;
         self.key_tracker.adsr.release =
-            self.release_a.load(Ordering::Relaxed) as f32 / std::u16::MAX as f32;
+            self.release_a.load(Ordering::Relaxed) as f32 / u16::MAX as f32;
 
-        let fgain = self.gain_a.load(Ordering::Relaxed) as f32 / std::u16::MAX as f32;
+        let fgain = self.gain_a.load(Ordering::Relaxed) as f32 / u16::MAX as f32;
+        let waveform = Waveform::from(self.waveform_a.load(Ordering::Relaxed));
 
         for sample in buffer.iter_mut() {
             let amps = self.key_tracker.tick();
@@ -223,7 +230,14 @@ impl Synth {
 
             sample_w *= 1.0 / 1.0f32.max(sum_amps);
 
-            *sample = fgain * sample_w;
+            match waveform {
+                Waveform::Sin => {
+                    *sample = fgain * sample_w;
+                }
+                Waveform::Square => {
+                    *sample = fgain * sin_to_square(sample_w);
+                }
+            }
         }
     }
 }
@@ -241,6 +255,7 @@ impl Synthesizer {
         active_keys: Arc<AtomicUsize>,
         attack: Arc<AtomicU16>,
         release: Arc<AtomicU16>,
+        waveform: Arc<AtomicI32>,
     ) -> Self {
         let host = cpal::host_from_id(
             cpal::available_hosts()
@@ -259,7 +274,7 @@ impl Synthesizer {
             .with_max_sample_rate();
 
         let sample_rate = supported_config.sample_rate().0 as f32;
-        let mut synth = Synth::new(sample_rate, attack, release, active_keys, gain);
+        let mut synth = Synth::new(sample_rate, attack, release, active_keys, gain, waveform);
         println!("[DEBUG] Sample rate: {sample_rate}");
         println!("[DEBUG] Buffer size: {:?}", supported_config.buffer_size());
         let stream = device

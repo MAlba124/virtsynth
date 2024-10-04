@@ -1,9 +1,9 @@
 use std::sync::{
-    atomic::{AtomicU16, AtomicUsize, Ordering},
+    atomic::{AtomicI32, AtomicU16, AtomicUsize, Ordering},
     Arc,
 };
 
-use crate::synthesizer::Synthesizer;
+use crate::{synthesizer::Synthesizer, waveform::Waveform};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Key {
@@ -131,6 +131,7 @@ pub struct Keyboard {
     pub attack: Arc<AtomicU16>,
     pub release: Arc<AtomicU16>,
     _synth: Synthesizer,
+    waveform: Arc<AtomicI32>,
 }
 
 impl Keyboard {
@@ -138,16 +139,25 @@ impl Keyboard {
         let active_keys = Arc::new(AtomicUsize::new(0));
         let active_keys_clone = Arc::clone(&active_keys);
 
-        let gain = Arc::new(AtomicU16::new(std::u16::MAX / 2));
+        let gain = Arc::new(AtomicU16::new(u16::MAX / 2));
         let gain_clone = Arc::clone(&gain);
 
-        let attack = Arc::new(AtomicU16::new(std::u16::MAX / 2));
+        let attack = Arc::new(AtomicU16::new(u16::MAX / 2));
         let attack_clone = Arc::clone(&attack);
 
-        let release = Arc::new(AtomicU16::new(std::u16::MAX / 2));
+        let release = Arc::new(AtomicU16::new(u16::MAX / 2));
         let release_clone = Arc::clone(&release);
 
-        let synth = Synthesizer::new(gain_clone, active_keys_clone, attack_clone, release_clone);
+        let waveform = Arc::new(AtomicI32::new(Waveform::Sin as i32));
+        let waveform_clone = Arc::clone(&waveform);
+
+        let synth = Synthesizer::new(
+            gain_clone,
+            active_keys_clone,
+            attack_clone,
+            release_clone,
+            waveform_clone,
+        );
 
         Self {
             active_keys,
@@ -155,6 +165,7 @@ impl Keyboard {
             _synth: synth,
             attack,
             release,
+            waveform,
         }
     }
 
@@ -165,12 +176,12 @@ impl Keyboard {
 
     #[inline(always)]
     pub fn gain(&self) -> f32 {
-        self.gain.load(Ordering::Relaxed) as f32 / std::u16::MAX as f32
+        self.gain.load(Ordering::Relaxed) as f32 / u16::MAX as f32
     }
 
     #[inline(always)]
     pub fn set_gain(&self, new_gain: f32) {
         self.gain
-            .store((std::u16::MAX as f32 * new_gain) as u16, Ordering::Relaxed);
+            .store((u16::MAX as f32 * new_gain) as u16, Ordering::Relaxed);
     }
 }

@@ -1,5 +1,4 @@
-use eframe::egui::{self, Slider, Theme};
-use egui_plot::PlotPoints;
+use eframe::egui::{self, Margin, Slider, Theme};
 
 use crate::keyboard::{Key, KeyBitflags, Keyboard};
 
@@ -24,6 +23,8 @@ impl Default for Envelope {
 pub struct VirtSynth {
     keyboard: Keyboard,
     envelope: Envelope,
+    gain: f32,
+    osc_frequency: u16,
 }
 
 impl VirtSynth {
@@ -35,6 +36,8 @@ impl VirtSynth {
         Self {
             keyboard,
             envelope: Envelope::default(),
+            gain: 0.5,
+            osc_frequency: 40,
         }
     }
 
@@ -83,105 +86,98 @@ impl VirtSynth {
 impl eframe::App for VirtSynth {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label("Gain");
-            let mut new_gain = self.keyboard.gain();
-            let old_gain = new_gain;
-            ui.add(
-                Slider::new(&mut new_gain, 0.0..=1.0)
-                    .step_by(0.01)
-                    .orientation(egui::SliderOrientation::Vertical),
-            );
-            if new_gain != old_gain {
-                self.keyboard.set_gain(new_gain);
-            }
-
             let active_keys = self.get_active_keys(ctx);
             self.keyboard.set_active_keys(active_keys.0);
 
-            ui.horizontal(|ui| {
-                ui.columns(2, |cols| {
-                    cols[0].vertical_centered_justified(|ui| {
-                        // TODO: Cache
-                        let samples = 256;
-                        let sin: egui_plot::PlotPoints = (0..samples)
-                            .map(|i| {
-                                let x = (i as f64 / samples as f64) * (2.0 * std::f64::consts::PI);
-                                let mut val: f64 = 0.0;
-                                let mut n_keys = 0;
-                                for key in active_keys {
-                                    n_keys += 1;
-                                    val +=
-                                        (2.0 * std::f64::consts::PI * key.freq() as f64 * x).sin();
-                                }
-
-                                if n_keys > 1 {
-                                    val = val / n_keys as f64;
-                                }
-
-                                [x, val]
-                            })
-                            .collect();
-                        let line = egui_plot::Line::new(sin);
-                        egui_plot::Plot::new("waveform")
-                            .view_aspect(1.5)
-                            .allow_zoom(false)
-                            .allow_scroll(false)
-                            .allow_drag(false)
-                            .show(ui, |plot_ui| plot_ui.line(line));
-                    });
-                    cols[1].vertical(|ui| {
-                        ui.label("Envelope");
-                        ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
+                egui::Frame::default()
+                    .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+                    .inner_margin(Margin::same(5.0))
+                    .rounding(ui.visuals().widgets.noninteractive.rounding)
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.label("Master");
                             ui.add(
-                                Slider::new(&mut self.envelope.attack, 0.0..=1.0)
+                                Slider::new(&mut self.gain, 0.0..=1.0)
                                     .step_by(0.01)
-                                    .text("Attack")
-                                    .suffix("s")
+                                    .text("Gain")
                                     .orientation(egui::SliderOrientation::Vertical),
                             );
-                            self.keyboard.attack.store(
-                                (std::u16::MAX as f32 * self.envelope.attack) as u16,
-                                std::sync::atomic::Ordering::Relaxed,
-                            );
-                            // TODO
-                            // Decay
-                            // ui.add(
-                            //     Slider::new(&mut self.envelope.decay, 0.0..=1.0)
-                            //         .step_by(0.01)
-                            //         .orientation(egui::SliderOrientation::Vertical),
-                            // );
-                            // Sustain
-                            // ui.add(
-                            //     Slider::new(&mut self.envelope.sustain, 0.0..=1.0)
-                            //         .step_by(0.01)
-                            //         .orientation(egui::SliderOrientation::Vertical),
-                            // );
-                            ui.add(
-                                Slider::new(&mut self.envelope.release, 0.0..=1.0)
-                                    .step_by(0.01)
-                                    .text("Release")
-                                    .suffix("s")
-                                    .orientation(egui::SliderOrientation::Vertical),
-                            );
-                            self.keyboard.release.store(
-                                (std::u16::MAX as f32 * self.envelope.release) as u16,
-                                std::sync::atomic::Ordering::Relaxed,
-                            );
+                            self.keyboard.set_gain(self.gain);
                         });
-                        // TODO
-                        // let points = PlotPoints::from_ys_f32(&[
-                        //     0.0,
-                        //     self.envelope.attack,
-                        //     self.envelope.decay,
-                        //     self.envelope.sustain,
-                        //     self.envelope.release,
-                        //     0.0,
-                        // ]);
-                        // egui_plot::Plot::new("envelope").show(ui, |plot_ui| {
-                        //     plot_ui.polygon(egui_plot::Polygon::new(points))
-                        // });
                     });
-                })
+
+                egui::Frame::default()
+                    .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+                    .inner_margin(Margin::same(5.0))
+                    .rounding(ui.visuals().widgets.noninteractive.rounding)
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            let mut a = false;
+                            ui.horizontal(|ui| {
+                                ui.checkbox(&mut a, "");
+                                ui.label("Oscillator");
+                            });
+                            ui.horizontal(|ui| {
+                                if !a {
+                                    ui.disable();
+                                }
+                                ui.add(
+                                    Slider::new(&mut self.osc_frequency, 1..=300)
+                                        .text("Frequency")
+                                        .suffix("Hz")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                            });
+                        });
+                    });
+
+                egui::Frame::default()
+                    .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+                    .inner_margin(Margin::same(5.0))
+                    .rounding(ui.visuals().widgets.noninteractive.rounding)
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.label("Envelope");
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    Slider::new(&mut self.envelope.attack, 0.0..=1.0)
+                                        .step_by(0.01)
+                                        .text("Attack")
+                                        .suffix("s")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                                self.keyboard.attack.store(
+                                    (u16::MAX as f32 * self.envelope.attack) as u16,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
+                                // TODO
+                                // Decay
+                                // ui.add(
+                                //     Slider::new(&mut self.envelope.decay, 0.0..=1.0)
+                                //         .step_by(0.01)
+                                //         .orientation(egui::SliderOrientation::Vertical),
+                                // );
+                                // Sustain
+                                // ui.add(
+                                //     Slider::new(&mut self.envelope.sustain, 0.0..=1.0)
+                                //         .step_by(0.01)
+                                //         .orientation(egui::SliderOrientation::Vertical),
+                                // );
+                                ui.add(
+                                    Slider::new(&mut self.envelope.release, 0.0..=1.0)
+                                        .step_by(0.01)
+                                        .text("Release")
+                                        .suffix("s")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                                self.keyboard.release.store(
+                                    (u16::MAX as f32 * self.envelope.release) as u16,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
+                            });
+                        });
+                    });
             });
         });
     }
