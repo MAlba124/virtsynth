@@ -200,7 +200,7 @@ impl Synth {
     }
 
     #[inline(always)]
-    pub fn on_buffer(&mut self, buffer: &mut [f32]) {
+    pub fn on_buffer(&mut self, buffer: &mut [f32], channels: usize) {
         self.key_tracker
             .update(self.active_keys.load(Ordering::Relaxed));
         self.key_tracker.adsr.attack = self.attack_a.load(Ordering::Relaxed);
@@ -214,7 +214,7 @@ impl Synth {
 
         self.osc.waveform = self.osc_waveform.load(Ordering::Relaxed);
 
-        for sample in buffer.iter_mut() {
+        for sample_frame in buffer.chunks_mut(channels) {
             let amps = self.key_tracker.tick();
             let mut sum_amps: f32 = 0.0;
 
@@ -246,7 +246,11 @@ impl Synth {
                 sample_w *= self.osc.tick(self.sample_rate);
             }
 
-            *sample = fgain * sample_w;
+            let the_sample = fgain * sample_w;
+
+            for sample in sample_frame.iter_mut() {
+                *sample = the_sample;
+            }
         }
     }
 }
@@ -295,6 +299,9 @@ impl Synthesizer {
             osc_frequency,
             osc_waveform,
         );
+        let channels = supported_config.channels() as usize;
+
+        println!("[DEBUG] Channels:    {channels}");
         println!("[DEBUG] Sample rate: {sample_rate}");
         println!("[DEBUG] Buffer size: {:?}", supported_config.buffer_size());
 
@@ -302,7 +309,7 @@ impl Synthesizer {
             .build_output_stream(
                 &supported_config.config(),
                 move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
-                    synth.on_buffer(data);
+                    synth.on_buffer(data, channels);
                 },
                 move |_err| {},
                 None,
