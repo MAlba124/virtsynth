@@ -1,9 +1,13 @@
 use std::sync::{
-    atomic::{AtomicI32, AtomicU16, AtomicUsize, Ordering},
+    atomic::{AtomicUsize, AtomicBool, Ordering},
     Arc,
 };
 
-use crate::{synthesizer::Synthesizer, waveform::Waveform};
+use crate::{
+    atomicf::{AtomicF32, AtomicWaveform},
+    synthesizer::Synthesizer,
+    waveform::Waveform,
+};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Key {
@@ -126,12 +130,14 @@ impl Iterator for KeyBitflags {
 }
 
 pub struct Keyboard {
-    gain: Arc<AtomicU16>,
+    pub gain: Arc<AtomicF32>,
     active_keys: Arc<AtomicUsize>,
-    pub attack: Arc<AtomicU16>,
-    pub release: Arc<AtomicU16>,
+    pub attack: Arc<AtomicF32>,
+    pub release: Arc<AtomicF32>,
     _synth: Synthesizer,
-    waveform: Arc<AtomicI32>,
+    pub osc_active: Arc<AtomicBool>,
+    pub osc_frequency: Arc<AtomicF32>,
+    pub osc_waveform: Arc<AtomicWaveform>,
 }
 
 impl Keyboard {
@@ -139,24 +145,32 @@ impl Keyboard {
         let active_keys = Arc::new(AtomicUsize::new(0));
         let active_keys_clone = Arc::clone(&active_keys);
 
-        let gain = Arc::new(AtomicU16::new(u16::MAX / 2));
+        let gain = Arc::new(AtomicF32::new(0.5));
         let gain_clone = Arc::clone(&gain);
 
-        let attack = Arc::new(AtomicU16::new(u16::MAX / 2));
+        let attack = Arc::new(AtomicF32::new(0.5));
         let attack_clone = Arc::clone(&attack);
 
-        let release = Arc::new(AtomicU16::new(u16::MAX / 2));
+        let release = Arc::new(AtomicF32::new(0.5));
         let release_clone = Arc::clone(&release);
 
-        let waveform = Arc::new(AtomicI32::new(Waveform::Sin as i32));
-        let waveform_clone = Arc::clone(&waveform);
+        let osc_active = Arc::new(AtomicBool::new(false));
+        let osc_active_clone = Arc::clone(&osc_active);
+
+        let osc_frequency = Arc::new(AtomicF32::new(10.0));
+        let osc_frequency_clone = Arc::clone(&osc_frequency);
+
+        let osc_waveform = Arc::new(AtomicWaveform::new(Waveform::Sin));
+        let osc_waveform_clone = Arc::clone(&osc_waveform);
 
         let synth = Synthesizer::new(
             gain_clone,
             active_keys_clone,
             attack_clone,
             release_clone,
-            waveform_clone,
+            osc_active_clone,
+            osc_frequency_clone,
+            osc_waveform_clone,
         );
 
         Self {
@@ -165,23 +179,14 @@ impl Keyboard {
             _synth: synth,
             attack,
             release,
-            waveform,
+            osc_active,
+            osc_frequency,
+            osc_waveform,
         }
     }
 
     #[inline(always)]
     pub fn set_active_keys(&mut self, active_keys: usize) {
         self.active_keys.store(active_keys, Ordering::Relaxed);
-    }
-
-    #[inline(always)]
-    pub fn gain(&self) -> f32 {
-        self.gain.load(Ordering::Relaxed) as f32 / u16::MAX as f32
-    }
-
-    #[inline(always)]
-    pub fn set_gain(&self, new_gain: f32) {
-        self.gain
-            .store((u16::MAX as f32 * new_gain) as u16, Ordering::Relaxed);
     }
 }
