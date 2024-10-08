@@ -7,39 +7,16 @@ use crate::{
     waveform::Waveform,
 };
 
-struct Envelope {
-    pub attack: f32,
-    pub _decay: f32,
-    pub _sustain: f32,
-    pub release: f32,
-}
-
-impl Default for Envelope {
-    fn default() -> Self {
-        Self {
-            attack: 0.03,
-            _decay: 1.0,
-            _sustain: 1.0,
-            release: 0.2,
-        }
-    }
-}
-
 pub struct VirtSynth {
     keyboard: Keyboard,
-    envelope: Envelope,
     gain: f32,
 }
 
 impl VirtSynth {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_theme(Theme::Light);
-
-        let keyboard = Keyboard::new();
-
         Self {
-            keyboard,
-            envelope: Envelope::default(),
+            keyboard: Keyboard::new(),
             gain: 0.5,
         }
     }
@@ -169,39 +146,44 @@ impl eframe::App for VirtSynth {
                         ui.vertical(|ui| {
                             ui.label("Envelope");
                             ui.horizontal(|ui| {
+                                let mut attack = self.keyboard.attack.load(Ordering::Acquire);
                                 ui.add(
-                                    Slider::new(&mut self.envelope.attack, 0.0..=1.0)
+                                    Slider::new(&mut attack, 0.0..=1.0)
                                         .step_by(0.01)
                                         .text("Attack")
                                         .suffix("s")
                                         .orientation(egui::SliderOrientation::Vertical),
                                 );
-                                self.keyboard
-                                    .attack
-                                    .store(self.envelope.attack, Ordering::Release);
-                                // TODO
-                                // Decay
-                                // ui.add(
-                                //     Slider::new(&mut self.envelope.decay, 0.0..=1.0)
-                                //         .step_by(0.01)
-                                //         .orientation(egui::SliderOrientation::Vertical),
-                                // );
-                                // Sustain
-                                // ui.add(
-                                //     Slider::new(&mut self.envelope.sustain, 0.0..=1.0)
-                                //         .step_by(0.01)
-                                //         .orientation(egui::SliderOrientation::Vertical),
-                                // );
+                                self.keyboard.attack.store(attack, Ordering::Release);
+
+                                let mut decay = self.keyboard.decay.load(Ordering::Acquire);
                                 ui.add(
-                                    Slider::new(&mut self.envelope.release, 0.0..=1.0)
+                                    Slider::new(&mut decay, 0.0..=1.0)
+                                        .step_by(0.01)
+                                        .text("Decay")
+                                        .suffix("s")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                                self.keyboard.decay.store(decay, Ordering::Release);
+
+                                let mut sustain = self.keyboard.sustain.load(Ordering::Acquire);
+                                ui.add(
+                                    Slider::new(&mut sustain, 0.0..=1.0)
+                                        .step_by(0.01)
+                                        .text("Sustain")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                                self.keyboard.sustain.store(sustain, Ordering::Release);
+
+                                let mut release = self.keyboard.release.load(Ordering::Acquire);
+                                ui.add(
+                                    Slider::new(&mut release, 0.0..=1.0)
                                         .step_by(0.01)
                                         .text("Release")
                                         .suffix("s")
                                         .orientation(egui::SliderOrientation::Vertical),
                                 );
-                                self.keyboard
-                                    .release
-                                    .store(self.envelope.release, Ordering::Release);
+                                self.keyboard.release.store(release, Ordering::Release);
                             });
                         });
                     });

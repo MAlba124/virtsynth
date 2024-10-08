@@ -133,6 +133,8 @@ pub struct Keyboard {
     pub gain: Arc<AtomicF32>,
     active_keys: Arc<AtomicUsize>,
     pub attack: Arc<AtomicF32>,
+    pub decay: Arc<AtomicF32>,
+    pub sustain: Arc<AtomicF32>,
     pub release: Arc<AtomicF32>,
     _synth: Synthesizer,
     pub osc_active: Arc<AtomicBool>,
@@ -148,10 +150,16 @@ impl Keyboard {
         let gain = Arc::new(AtomicF32::new(0.5));
         let gain_clone = Arc::clone(&gain);
 
-        let attack = Arc::new(AtomicF32::new(0.5));
+        let attack = Arc::new(AtomicF32::new(0.1));
         let attack_clone = Arc::clone(&attack);
 
-        let release = Arc::new(AtomicF32::new(0.5));
+        let decay = Arc::new(AtomicF32::new(0.0));
+        let decay_clone = Arc::clone(&decay);
+
+        let sustain = Arc::new(AtomicF32::new(1.0));
+        let sustain_clone = Arc::clone(&sustain);
+
+        let release = Arc::new(AtomicF32::new(0.1));
         let release_clone = Arc::clone(&release);
 
         let osc_active = Arc::new(AtomicBool::new(false));
@@ -167,6 +175,8 @@ impl Keyboard {
             gain_clone,
             active_keys_clone,
             attack_clone,
+            decay_clone,
+            sustain_clone,
             release_clone,
             osc_active_clone,
             osc_frequency_clone,
@@ -178,6 +188,8 @@ impl Keyboard {
             gain,
             _synth: synth,
             attack,
+            decay,
+            sustain,
             release,
             osc_active,
             osc_frequency,

@@ -50,6 +50,8 @@ impl PhaseStore {
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum KeyState {
     Pressed,
+    Decay,
+    Sustain,
     Released,
 }
 
@@ -62,14 +64,16 @@ struct TrackElement {
 }
 
 impl TrackElement {
+    #[inline(always)]
     pub fn press(&mut self) {
-        if self.state != KeyState::Pressed {
+        if self.state == KeyState::Released {
             self.state = KeyState::Pressed;
             self.position = 0.0;
             self.t_amplitude = self.amplitude;
         }
     }
 
+    #[inline(always)]
     pub fn release(&mut self) {
         if self.state != KeyState::Released {
             self.state = KeyState::Released;
@@ -78,15 +82,32 @@ impl TrackElement {
         }
     }
 
+    #[inline(always)]
     pub fn tick(&mut self, sample_rate: f32, adsr: &ADSR) {
         match self.state {
             KeyState::Pressed => {
                 self.position += 1.0;
-                if self.position < (sample_rate * adsr.attack) {
+                if self.position < sample_rate * adsr.attack {
                     self.amplitude += (1.0 - self.t_amplitude) / (sample_rate * adsr.attack);
-                } else {
-                    self.amplitude = 1.0;
+                    return;
                 }
+
+                self.amplitude = 1.0;
+                self.position = 0.0;
+                self.state = KeyState::Decay;
+            }
+            KeyState::Decay => {
+                self.position += 1.0;
+                if self.position < sample_rate * adsr.decay {
+                    self.amplitude -= (1.0 - adsr.sustain) / (sample_rate * adsr.decay);
+                    return;
+                }
+
+                self.amplitude = adsr.sustain;
+                self.state = KeyState::Sustain;
+            }
+            KeyState::Sustain => {
+                self.amplitude = adsr.sustain;
             }
             KeyState::Released => {
                 self.position += 1.0;
@@ -118,11 +139,17 @@ struct KeyAmplitudeTracker {
 }
 
 impl KeyAmplitudeTracker {
-    pub fn new(sample_rate: f32, attack_a: Arc<AtomicF32>, release_a: Arc<AtomicF32>) -> Self {
+    pub fn new(
+        sample_rate: f32,
+        attack_a: Arc<AtomicF32>,
+        decay_a: Arc<AtomicF32>,
+        sustain_a: Arc<AtomicF32>,
+        release_a: Arc<AtomicF32>,
+    ) -> Self {
         Self {
             sample_rate,
             keys: [TrackElement::default(); 12],
-            adsr: ADSR::new(attack_a, release_a),
+            adsr: ADSR::new(attack_a, decay_a, sustain_a, release_a),
         }
     }
 
@@ -163,6 +190,8 @@ impl Engine {
     pub fn new(
         sample_rate: f32,
         attack_a: Arc<AtomicF32>,
+        decay_a: Arc<AtomicF32>,
+        sustain_a: Arc<AtomicF32>,
         release_a: Arc<AtomicF32>,
         active_keys: Arc<AtomicUsize>,
         gain_a: Arc<AtomicF32>,
@@ -173,7 +202,13 @@ impl Engine {
         Self {
             sample_rate,
             phases: PhaseStore::new(),
-            key_tracker: KeyAmplitudeTracker::new(sample_rate, attack_a, release_a),
+            key_tracker: KeyAmplitudeTracker::new(
+                sample_rate,
+                attack_a,
+                decay_a,
+                sustain_a,
+                release_a,
+            ),
             active_keys,
             gain_a,
             osc: Oscilator::new(osc_frequency, osc_waveform, osc_active),
@@ -237,6 +272,8 @@ impl Synthesizer {
         gain: Arc<AtomicF32>,
         active_keys: Arc<AtomicUsize>,
         attack: Arc<AtomicF32>,
+        decay: Arc<AtomicF32>,
+        sustain: Arc<AtomicF32>,
         release: Arc<AtomicF32>,
         osc_active: Arc<AtomicBool>,
         osc_frequency: Arc<AtomicF32>,
@@ -262,6 +299,8 @@ impl Synthesizer {
         let mut synth = Engine::new(
             sample_rate,
             attack,
+            decay,
+            sustain,
             release,
             active_keys,
             gain,
