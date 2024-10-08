@@ -6,7 +6,10 @@ use std::sync::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::{
-    atomicf::{AtomicF32, AtomicWaveform}, envelope::ADSR, keyboard::Key, oscilator::Oscilator
+    atomicf::{AtomicF32, AtomicWaveform},
+    envelope::ADSR,
+    keyboard::Key,
+    oscilator::Oscilator,
 };
 
 pub const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
@@ -115,7 +118,7 @@ struct KeyAmplitudeTracker {
 }
 
 impl KeyAmplitudeTracker {
-    pub fn new(sample_rate: f32, attack_a: Arc<AtomicF32>, release_a: Arc<AtomicF32>,) -> Self {
+    pub fn new(sample_rate: f32, attack_a: Arc<AtomicF32>, release_a: Arc<AtomicF32>) -> Self {
         Self {
             sample_rate,
             keys: [TrackElement::default(); 12],

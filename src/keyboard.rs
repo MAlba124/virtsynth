@@ -1,5 +1,5 @@
 use std::sync::{
-    atomic::{AtomicUsize, AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 
