@@ -6,9 +6,7 @@ use std::sync::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::{
-    atomicf::{AtomicF32, AtomicWaveform},
-    keyboard::Key,
-    oscilator::Oscilator,
+    atomicf::{AtomicF32, AtomicWaveform}, envelope::ADSR, keyboard::Key, oscilator::Oscilator
 };
 
 pub const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
@@ -50,13 +48,6 @@ impl PhaseStore {
 enum KeyState {
     Pressed,
     Released,
-}
-
-struct ADSR {
-    pub attack: f32,
-    pub _decay: f32,
-    pub _sustain: f32,
-    pub release: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -124,21 +115,18 @@ struct KeyAmplitudeTracker {
 }
 
 impl KeyAmplitudeTracker {
-    pub fn new(sample_rate: f32) -> Self {
+    pub fn new(sample_rate: f32, attack_a: Arc<AtomicF32>, release_a: Arc<AtomicF32>,) -> Self {
         Self {
             sample_rate,
             keys: [TrackElement::default(); 12],
-            adsr: ADSR {
-                attack: 0.4,
-                _decay: 0.0,
-                _sustain: 0.0,
-                release: 0.2,
-            },
+            adsr: ADSR::new(attack_a, release_a),
         }
     }
 
     #[inline(always)]
     pub fn update(&mut self, keys: usize) {
+        self.adsr.update();
+
         let mut mask = 0b1;
         for i in 0..12 {
             if (keys & mask) > 0 {
@@ -163,8 +151,6 @@ struct Engine {
     sample_rate: f32,
     phases: PhaseStore,
     key_tracker: KeyAmplitudeTracker,
-    attack_a: Arc<AtomicF32>,
-    release_a: Arc<AtomicF32>,
     active_keys: Arc<AtomicUsize>,
     gain_a: Arc<AtomicF32>,
     osc: Oscilator,
@@ -184,9 +170,7 @@ impl Engine {
         Self {
             sample_rate,
             phases: PhaseStore::new(),
-            key_tracker: KeyAmplitudeTracker::new(sample_rate),
-            attack_a,
-            release_a,
+            key_tracker: KeyAmplitudeTracker::new(sample_rate, attack_a, release_a),
             active_keys,
             gain_a,
             osc: Oscilator::new(osc_frequency, osc_waveform, osc_active),
@@ -197,9 +181,6 @@ impl Engine {
     pub fn on_buffer(&mut self, buffer: &mut [f32], channels: usize) {
         self.key_tracker
             .update(self.active_keys.load(Ordering::Acquire));
-        self.key_tracker.adsr.attack = self.attack_a.load(Ordering::Acquire);
-
-        self.key_tracker.adsr.release = self.release_a.load(Ordering::Acquire);
 
         let fgain = self.gain_a.load(Ordering::Acquire);
 
@@ -222,7 +203,6 @@ impl Engine {
                 let phase_increment = TWO_PI * key.freq() / self.sample_rate;
                 *phase += phase_increment;
 
-                // Keep phase in the range [0, 2π]
                 if *phase > TWO_PI {
                     *phase -= TWO_PI;
                 }
