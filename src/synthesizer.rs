@@ -159,7 +159,7 @@ impl KeyAmplitudeTracker {
     }
 }
 
-struct Synth {
+struct Engine {
     sample_rate: f32,
     phases: PhaseStore,
     key_tracker: KeyAmplitudeTracker,
@@ -170,7 +170,7 @@ struct Synth {
     osc: Oscilator,
 }
 
-impl Synth {
+impl Engine {
     pub fn new(
         sample_rate: f32,
         attack_a: Arc<AtomicF32>,
@@ -276,7 +276,7 @@ impl Synthesizer {
             .with_max_sample_rate();
 
         let sample_rate = supported_config.sample_rate().0 as f32;
-        let mut synth = Synth::new(
+        let mut synth = Engine::new(
             sample_rate,
             attack,
             release,
