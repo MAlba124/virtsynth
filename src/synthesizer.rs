@@ -168,9 +168,6 @@ struct Synth {
     active_keys: Arc<AtomicUsize>,
     gain_a: Arc<AtomicF32>,
     osc: Oscilator,
-    osc_active: Arc<AtomicBool>,
-    osc_frequency: Arc<AtomicF32>,
-    osc_waveform: Arc<AtomicWaveform>,
 }
 
 impl Synth {
@@ -192,10 +189,7 @@ impl Synth {
             release_a,
             active_keys,
             gain_a,
-            osc: Oscilator::default(),
-            osc_active,
-            osc_frequency,
-            osc_waveform,
+            osc: Oscilator::new(osc_frequency, osc_waveform, osc_active),
         }
     }
 
@@ -209,10 +203,7 @@ impl Synth {
 
         let fgain = self.gain_a.load(Ordering::Acquire);
 
-        let osc_a = self.osc_active.load(Ordering::Acquire);
-        self.osc.frequency = self.osc_frequency.load(Ordering::Acquire);
-
-        self.osc.waveform = self.osc_waveform.load(Ordering::Acquire);
+        self.osc.update();
 
         for sample_frame in buffer.chunks_mut(channels) {
             let amps = self.key_tracker.tick();
@@ -242,11 +233,7 @@ impl Synth {
 
             sample_w *= 1.0 / 1.0f32.max(sum_amps);
 
-            if osc_a {
-                sample_w *= self.osc.tick(self.sample_rate);
-            }
-
-            let the_sample = fgain * sample_w;
+            let the_sample = fgain * sample_w * self.osc.tick(self.sample_rate);
 
             for sample in sample_frame.iter_mut() {
                 *sample = the_sample;
@@ -295,7 +282,7 @@ impl Synthesizer {
             release,
             active_keys,
             gain,
-            /* waveform, */ osc_active,
+            osc_active,
             osc_frequency,
             osc_waveform,
         );

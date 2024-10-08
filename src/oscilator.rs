@@ -1,26 +1,56 @@
-use crate::{synthesizer::TWO_PI, waveform::Waveform};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
+use crate::{
+    atomicf::{AtomicF32, AtomicWaveform},
+    synthesizer::TWO_PI,
+    waveform::Waveform,
+};
 
 pub struct Oscilator {
     counter: f32,
     amplitude: f32,
     pub waveform: Waveform,
     pub frequency: f32,
-}
-
-impl Default for Oscilator {
-    fn default() -> Self {
-        Self {
-            waveform: Waveform::Sin,
-            counter: 0.0,
-            amplitude: 1.0,
-            frequency: 4.0,
-        }
-    }
+    active: bool,
+    frequency_a: Arc<AtomicF32>,
+    waveform_a: Arc<AtomicWaveform>,
+    active_a: Arc<AtomicBool>,
 }
 
 impl Oscilator {
+    pub fn new(
+        frequency_a: Arc<AtomicF32>,
+        waveform_a: Arc<AtomicWaveform>,
+        active_a: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            counter: 0.0,
+            amplitude: 1.0,
+            waveform: Waveform::Sin,
+            frequency: 0.0,
+            active: false,
+            frequency_a,
+            waveform_a,
+            active_a,
+        }
+    }
+
+    #[inline(always)]
+    pub fn update(&mut self) {
+        self.frequency = self.frequency_a.load(Ordering::Acquire);
+        self.waveform = self.waveform_a.load(Ordering::Acquire);
+        self.active = self.active_a.load(Ordering::Acquire);
+    }
+
     #[inline(always)]
     pub fn tick(&mut self, sample_rate: f32) -> f32 {
+        if !self.active {
+            return 1.0;
+        }
+
         match self.waveform {
             Waveform::Sin => {
                 self.amplitude += TWO_PI * self.frequency / sample_rate;
