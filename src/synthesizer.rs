@@ -202,17 +202,17 @@ impl Synth {
     #[inline(always)]
     pub fn on_buffer(&mut self, buffer: &mut [f32], channels: usize) {
         self.key_tracker
-            .update(self.active_keys.load(Ordering::Relaxed));
-        self.key_tracker.adsr.attack = self.attack_a.load(Ordering::Relaxed);
+            .update(self.active_keys.load(Ordering::Acquire));
+        self.key_tracker.adsr.attack = self.attack_a.load(Ordering::Acquire);
 
-        self.key_tracker.adsr.release = self.release_a.load(Ordering::Relaxed);
+        self.key_tracker.adsr.release = self.release_a.load(Ordering::Acquire);
 
-        let fgain = self.gain_a.load(Ordering::Relaxed);
+        let fgain = self.gain_a.load(Ordering::Acquire);
 
-        let osc_a = self.osc_active.load(Ordering::Relaxed);
-        self.osc.frequency = self.osc_frequency.load(Ordering::Relaxed);
+        let osc_a = self.osc_active.load(Ordering::Acquire);
+        self.osc.frequency = self.osc_frequency.load(Ordering::Acquire);
 
-        self.osc.waveform = self.osc_waveform.load(Ordering::Relaxed);
+        self.osc.waveform = self.osc_waveform.load(Ordering::Acquire);
 
         for sample_frame in buffer.chunks_mut(channels) {
             let amps = self.key_tracker.tick();

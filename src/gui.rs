@@ -106,7 +106,7 @@ impl eframe::App for VirtSynth {
                                     .text("Gain")
                                     .orientation(egui::SliderOrientation::Vertical),
                             );
-                            self.keyboard.gain.store(self.gain, Ordering::Relaxed);
+                            self.keyboard.gain.store(self.gain, Ordering::Release);
                         });
                     });
 
@@ -116,33 +116,46 @@ impl eframe::App for VirtSynth {
                     .rounding(ui.visuals().widgets.noninteractive.rounding)
                     .show(ui, |ui| {
                         ui.vertical(|ui| {
-                            let mut osc = self.keyboard.osc_active.load(Ordering::Relaxed);
+                            let mut osc = self.keyboard.osc_active.load(Ordering::Acquire);
                             ui.horizontal(|ui| {
                                 ui.checkbox(&mut osc, "");
                                 ui.label("Oscillator");
                             });
-                            self.keyboard.osc_active.store(osc, Ordering::Relaxed);
+                            self.keyboard.osc_active.store(osc, Ordering::Release);
                             ui.horizontal(|ui| {
                                 if !osc {
                                     ui.disable();
                                 }
-                                let mut freq = self.keyboard.osc_frequency.load(Ordering::Relaxed);
+                                let mut freq = self.keyboard.osc_frequency.load(Ordering::Acquire);
                                 ui.add(
                                     Slider::new(&mut freq, 1.0..=300.0)
                                         .text("Frequency")
                                         .suffix("Hz")
                                         .orientation(egui::SliderOrientation::Vertical),
                                 );
-                                self.keyboard.osc_frequency.store(freq, Ordering::Relaxed);
+                                self.keyboard.osc_frequency.store(freq, Ordering::Release);
+
+                                let mut max = 1.0;
+                                let mut min = -1.0;
+                                ui.add(
+                                    Slider::new(&mut max, 0.0..=1.0)
+                                        .text("Max")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
+                                ui.add(
+                                    Slider::new(&mut min, -1.0..=0.0)
+                                        .text("Min")
+                                        .orientation(egui::SliderOrientation::Vertical),
+                                );
 
                                 ui.vertical(|ui| {
                                     let mut osc_wave =
-                                        self.keyboard.osc_waveform.load(Ordering::Relaxed);
+                                        self.keyboard.osc_waveform.load(Ordering::Acquire);
                                     ui.radio_value(&mut osc_wave, Waveform::Sin, "Sine");
                                     ui.radio_value(&mut osc_wave, Waveform::Square, "Square");
                                     self.keyboard
                                         .osc_waveform
-                                        .store(osc_wave, Ordering::Relaxed);
+                                        .store(osc_wave, Ordering::Release);
                                 });
                             });
                         });
@@ -165,7 +178,7 @@ impl eframe::App for VirtSynth {
                                 );
                                 self.keyboard
                                     .attack
-                                    .store(self.envelope.attack, Ordering::Relaxed);
+                                    .store(self.envelope.attack, Ordering::Release);
                                 // TODO
                                 // Decay
                                 // ui.add(
@@ -188,7 +201,7 @@ impl eframe::App for VirtSynth {
                                 );
                                 self.keyboard
                                     .release
-                                    .store(self.envelope.release, Ordering::Relaxed);
+                                    .store(self.envelope.release, Ordering::Release);
                             });
                         });
                     });

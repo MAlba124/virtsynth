@@ -187,6 +187,6 @@ impl Keyboard {
 
     #[inline(always)]
     pub fn set_active_keys(&mut self, active_keys: usize) {
-        self.active_keys.store(active_keys, Ordering::Relaxed);
+        self.active_keys.store(active_keys, Ordering::Release);
     }
 }
