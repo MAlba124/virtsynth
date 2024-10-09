@@ -198,6 +198,7 @@ impl Engine {
         osc_active: Arc<AtomicBool>,
         osc_frequency: Arc<AtomicF32>,
         osc_waveform: Arc<AtomicWaveform>,
+        osc_scale: Arc<AtomicF32>,
     ) -> Self {
         Self {
             sample_rate,
@@ -211,7 +212,7 @@ impl Engine {
             ),
             active_keys,
             gain_a,
-            osc: Oscilator::new(osc_frequency, osc_waveform, osc_active),
+            osc: Oscilator::new(osc_frequency, osc_waveform, osc_active, osc_scale),
         }
     }
 
@@ -249,9 +250,17 @@ impl Engine {
                 sample_w += element.amplitude * phase.sin();
             }
 
+            // TODO: Learn how synths work
+            if sum_amps > 0.0 {
+                let osc_amp = self.osc.tick(self.sample_rate);
+                sample_w += osc_amp * sum_amps.min(1.0);
+                // sum_amps += osc_amp;
+            }
+
             sample_w *= 1.0 / 1.0f32.max(sum_amps);
 
-            let the_sample = fgain * sample_w * self.osc.tick(self.sample_rate);
+            // let the_sample = fgain * sample_w * self.osc.tick(self.sample_rate);
+            let the_sample = fgain * sample_w;
 
             for sample in sample_frame.iter_mut() {
                 *sample = the_sample;
@@ -278,6 +287,7 @@ impl Synthesizer {
         osc_active: Arc<AtomicBool>,
         osc_frequency: Arc<AtomicF32>,
         osc_waveform: Arc<AtomicWaveform>,
+        osc_scale: Arc<AtomicF32>,
     ) -> Self {
         let host = cpal::host_from_id(
             cpal::available_hosts()
@@ -307,6 +317,7 @@ impl Synthesizer {
             osc_active,
             osc_frequency,
             osc_waveform,
+            osc_scale,
         );
         let channels = supported_config.channels() as usize;
 

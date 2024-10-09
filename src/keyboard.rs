@@ -140,6 +140,7 @@ pub struct Keyboard {
     pub osc_active: Arc<AtomicBool>,
     pub osc_frequency: Arc<AtomicF32>,
     pub osc_waveform: Arc<AtomicWaveform>,
+    pub osc_scale: Arc<AtomicF32>,
 }
 
 impl Keyboard {
@@ -171,6 +172,9 @@ impl Keyboard {
         let osc_waveform = Arc::new(AtomicWaveform::new(Waveform::Sin));
         let osc_waveform_clone = Arc::clone(&osc_waveform);
 
+        let osc_scale = Arc::new(AtomicF32::new(1.0));
+        let osc_scale_clone = Arc::clone(&osc_scale);
+
         let synth = Synthesizer::new(
             gain_clone,
             active_keys_clone,
@@ -181,6 +185,7 @@ impl Keyboard {
             osc_active_clone,
             osc_frequency_clone,
             osc_waveform_clone,
+            osc_scale_clone,
         );
 
         Self {
@@ -194,6 +199,7 @@ impl Keyboard {
             osc_active,
             osc_frequency,
             osc_waveform,
+            osc_scale,
         }
     }
 

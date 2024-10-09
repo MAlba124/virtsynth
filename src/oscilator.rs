@@ -18,6 +18,8 @@ pub struct Oscilator {
     frequency_a: Arc<AtomicF32>,
     waveform_a: Arc<AtomicWaveform>,
     active_a: Arc<AtomicBool>,
+    scale: f32,
+    scale_a: Arc<AtomicF32>,
 }
 
 impl Oscilator {
@@ -25,6 +27,7 @@ impl Oscilator {
         frequency_a: Arc<AtomicF32>,
         waveform_a: Arc<AtomicWaveform>,
         active_a: Arc<AtomicBool>,
+        scale_a: Arc<AtomicF32>,
     ) -> Self {
         Self {
             counter: 0.0,
@@ -35,6 +38,8 @@ impl Oscilator {
             frequency_a,
             waveform_a,
             active_a,
+            scale: 1.0,
+            scale_a,
         }
     }
 
@@ -43,6 +48,7 @@ impl Oscilator {
         self.frequency = self.frequency_a.load(Ordering::Acquire);
         self.waveform = self.waveform_a.load(Ordering::Acquire);
         self.active = self.active_a.load(Ordering::Acquire);
+        self.scale = self.scale_a.load(Ordering::Acquire);
     }
 
     #[inline(always)]
@@ -57,7 +63,7 @@ impl Oscilator {
                 if self.amplitude > TWO_PI {
                     self.amplitude -= TWO_PI;
                 }
-                self.amplitude.sin()
+                self.amplitude.sin() * self.scale
             }
             Waveform::Square => {
                 self.counter += 1.0;
@@ -65,13 +71,13 @@ impl Oscilator {
                 let period_samples = sample_rate / self.frequency;
 
                 if self.counter < period_samples / 2.0 {
-                    return 1.0;
+                    return 1.0 * self.scale;
                 } else if self.counter < period_samples {
-                    return -1.0;
+                    return -1.0 * self.scale;
                 }
 
                 self.counter = 0.0;
-                1.0
+                1.0 * self.scale
             }
         }
     }
