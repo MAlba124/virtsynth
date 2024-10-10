@@ -1,18 +1,33 @@
+/*
+ * Copyright (C) 2024 Marcus L. Hanestad  <marlhan@proton.me>
+ *
+ * VirtSynth is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * VirtSynth is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with VirtSynth .  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+    atomic::{AtomicUsize, Ordering},
     Arc,
 };
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::{
-    atomicf::{AtomicF32, AtomicWaveform},
+    atomicf::AtomicF32,
     envelope::ADSR,
-    keyboard::Key,
+    keyboard::{Key, Osc},
     oscilator::Oscilator,
 };
-
-pub const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
 
 struct PhaseStore {
     phases: [f32; 12],
@@ -183,7 +198,9 @@ struct Engine {
     key_tracker: KeyAmplitudeTracker,
     active_keys: Arc<AtomicUsize>,
     gain_a: Arc<AtomicF32>,
-    osc: Oscilator,
+    osc1: Oscilator,
+    osc2: Oscilator,
+    osc3: Oscilator,
 }
 
 impl Engine {
@@ -195,10 +212,9 @@ impl Engine {
         release_a: Arc<AtomicF32>,
         active_keys: Arc<AtomicUsize>,
         gain_a: Arc<AtomicF32>,
-        osc_active: Arc<AtomicBool>,
-        osc_frequency: Arc<AtomicF32>,
-        osc_waveform: Arc<AtomicWaveform>,
-        osc_scale: Arc<AtomicF32>,
+        osc1: Osc,
+        osc2: Osc,
+        osc3: Osc,
     ) -> Self {
         Self {
             sample_rate,
@@ -212,7 +228,9 @@ impl Engine {
             ),
             active_keys,
             gain_a,
-            osc: Oscilator::new(osc_frequency, osc_waveform, osc_active, osc_scale),
+            osc1: Oscilator::new(osc1.waveform, osc1.active, osc1.gain),
+            osc2: Oscilator::new(osc2.waveform, osc2.active, osc2.gain),
+            osc3: Oscilator::new(osc3.waveform, osc3.active, osc3.gain),
         }
     }
 
@@ -223,7 +241,9 @@ impl Engine {
 
         let fgain = self.gain_a.load(Ordering::Acquire);
 
-        self.osc.update();
+        self.osc1.update();
+        self.osc2.update();
+        self.osc3.update();
 
         for sample_frame in buffer.chunks_mut(channels) {
             let amps = self.key_tracker.tick();
@@ -236,30 +256,34 @@ impl Engine {
                 }
 
                 let key = Key::from_zero_index(index);
+                let freq = key.freq();
 
                 let phase = self.phases.get_phase(key);
+                let adam = *phase;
 
-                let phase_increment = TWO_PI * key.freq() / self.sample_rate;
-                *phase += phase_increment;
-
-                if *phase > TWO_PI {
-                    *phase -= TWO_PI;
+                if self.osc1.active {
+                    sum_amps += element.amplitude * self.osc1.gain;
+                    sample_w += element.amplitude * self.osc1.tick(adam);
                 }
 
-                sum_amps += element.amplitude;
-                sample_w += element.amplitude * phase.sin();
-            }
+                if self.osc2.active {
+                    sum_amps += element.amplitude * self.osc2.gain;
+                    sample_w += element.amplitude * self.osc2.tick(adam);
+                }
 
-            // TODO: Learn how synths work
-            if sum_amps > 0.0 {
-                let osc_amp = self.osc.tick(self.sample_rate);
-                sample_w += osc_amp * sum_amps.min(1.0);
-                // sum_amps += osc_amp;
+                if self.osc3.active {
+                    sum_amps += element.amplitude * self.osc3.gain;
+                    sample_w += element.amplitude * self.osc3.tick(adam);
+                }
+
+                *phase += freq / self.sample_rate;
+                if *phase > 1.0 {
+                    *phase -= 1.0;
+                }
             }
 
             sample_w *= 1.0 / 1.0f32.max(sum_amps);
 
-            // let the_sample = fgain * sample_w * self.osc.tick(self.sample_rate);
             let the_sample = fgain * sample_w;
 
             for sample in sample_frame.iter_mut() {
@@ -284,10 +308,9 @@ impl Synthesizer {
         decay: Arc<AtomicF32>,
         sustain: Arc<AtomicF32>,
         release: Arc<AtomicF32>,
-        osc_active: Arc<AtomicBool>,
-        osc_frequency: Arc<AtomicF32>,
-        osc_waveform: Arc<AtomicWaveform>,
-        osc_scale: Arc<AtomicF32>,
+        osc1: Osc,
+        osc2: Osc,
+        osc3: Osc,
     ) -> Self {
         let host = cpal::host_from_id(
             cpal::available_hosts()
@@ -314,10 +337,9 @@ impl Synthesizer {
             release,
             active_keys,
             gain,
-            osc_active,
-            osc_frequency,
-            osc_waveform,
-            osc_scale,
+            osc1,
+            osc2,
+            osc3,
         );
         let channels = supported_config.channels() as usize;
 

@@ -1,7 +1,24 @@
+/*
+ * Copyright (C) 2024 Marcus L. Hanestad  <marlhan@proton.me>
+ *
+ * VirtSynth is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * VirtSynth is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with VirtSynth .  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::{cmp::Ordering, ops::RangeInclusive};
 
 use eframe::{
-    egui::{Painter, Pos2, Sense, Shape, Stroke, Vec2, Widget,},
+    egui::{Painter, Pos2, Sense, Shape, Stroke, Vec2, Widget},
     emath,
 };
 
@@ -32,22 +49,12 @@ pub struct Knob<'a> {
 }
 
 impl<'a> Knob<'a> {
-    pub fn new(value: &'a mut f32) -> Self {
+    pub fn new(value: &'a mut f32, range: RangeInclusive<f32>, speed: f32) -> Self {
         Self {
             value,
-            range: 0.0..=1.0,
-            speed: 0.01,
+            range,
+            speed,
         }
-    }
-
-    pub fn range(mut self, range: RangeInclusive<f32>) -> Self {
-        self.range = range;
-        self
-    }
-
-    pub fn speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
-        self
     }
 }
 

@@ -1,84 +1,78 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+/*
+ * Copyright (C) 2024 Marcus L. Hanestad  <marlhan@proton.me>
+ *
+ * VirtSynth is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * VirtSynth is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with VirtSynth .  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+use std::{
+    f32::consts::TAU,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use crate::{
     atomicf::{AtomicF32, AtomicWaveform},
-    synthesizer::TWO_PI,
     waveform::Waveform,
 };
 
 pub struct Oscilator {
-    counter: f32,
-    amplitude: f32,
     pub waveform: Waveform,
-    pub frequency: f32,
-    active: bool,
-    frequency_a: Arc<AtomicF32>,
+    pub active: bool,
     waveform_a: Arc<AtomicWaveform>,
     active_a: Arc<AtomicBool>,
-    scale: f32,
-    scale_a: Arc<AtomicF32>,
+    pub gain: f32, // Gain?
+    gain_a: Arc<AtomicF32>,
 }
 
 impl Oscilator {
     pub fn new(
-        frequency_a: Arc<AtomicF32>,
         waveform_a: Arc<AtomicWaveform>,
         active_a: Arc<AtomicBool>,
-        scale_a: Arc<AtomicF32>,
+        gain_a: Arc<AtomicF32>,
     ) -> Self {
         Self {
-            counter: 0.0,
-            amplitude: 1.0,
             waveform: Waveform::Sin,
-            frequency: 0.0,
             active: false,
-            frequency_a,
             waveform_a,
             active_a,
-            scale: 1.0,
-            scale_a,
+            gain: 1.0,
+            gain_a,
         }
     }
 
     #[inline(always)]
     pub fn update(&mut self) {
-        self.frequency = self.frequency_a.load(Ordering::Acquire);
         self.waveform = self.waveform_a.load(Ordering::Acquire);
         self.active = self.active_a.load(Ordering::Acquire);
-        self.scale = self.scale_a.load(Ordering::Acquire);
+        self.gain = self.gain_a.load(Ordering::Acquire);
     }
 
     #[inline(always)]
-    pub fn tick(&mut self, sample_rate: f32) -> f32 {
-        if !self.active {
-            return 1.0;
-        }
-
-        match self.waveform {
-            Waveform::Sin => {
-                self.amplitude += TWO_PI * self.frequency / sample_rate;
-                if self.amplitude > TWO_PI {
-                    self.amplitude -= TWO_PI;
-                }
-                self.amplitude.sin() * self.scale
-            }
+    pub fn tick(&mut self, phase: f32) -> f32 {
+        (match self.waveform {
+            Waveform::Sin => (phase * TAU).sin(),
             Waveform::Square => {
-                self.counter += 1.0;
-
-                let period_samples = sample_rate / self.frequency;
-
-                if self.counter < period_samples / 2.0 {
-                    return 1.0 * self.scale;
-                } else if self.counter < period_samples {
-                    return -1.0 * self.scale;
+                if phase > 0.5 {
+                    -1.0
+                } else {
+                    1.0
                 }
-
-                self.counter = 0.0;
-                1.0 * self.scale
             }
-        }
+            Waveform::Saw => 2.0 * phase - 1.0,
+            Waveform::Triangle => 2.0 * (2.0 * phase - 1.0).abs() - 1.0,
+        }) * self.gain
     }
 }

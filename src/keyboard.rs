@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2024 Marcus L. Hanestad  <marlhan@proton.me>
+ *
+ * VirtSynth is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * VirtSynth is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with VirtSynth .  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
@@ -129,6 +146,33 @@ impl Iterator for KeyBitflags {
     }
 }
 
+pub struct Osc {
+    pub active: Arc<AtomicBool>,
+    pub waveform: Arc<AtomicWaveform>,
+    pub gain: Arc<AtomicF32>,
+}
+
+impl Osc {
+    pub fn new(active: bool, waveform: Waveform, gain: f32) -> (Self, Self) {
+        let active = Arc::new(AtomicBool::new(active));
+        let waveform = Arc::new(AtomicWaveform::new(waveform));
+        let gain = Arc::new(AtomicF32::new(gain));
+
+        (
+            Self {
+                active: Arc::clone(&active),
+                waveform: Arc::clone(&waveform),
+                gain: Arc::clone(&gain),
+            },
+            Self {
+                active,
+                waveform,
+                gain,
+            },
+        )
+    }
+}
+
 pub struct Keyboard {
     pub gain: Arc<AtomicF32>,
     active_keys: Arc<AtomicUsize>,
@@ -137,10 +181,12 @@ pub struct Keyboard {
     pub sustain: Arc<AtomicF32>,
     pub release: Arc<AtomicF32>,
     _synth: Synthesizer,
-    pub osc_active: Arc<AtomicBool>,
-    pub osc_frequency: Arc<AtomicF32>,
-    pub osc_waveform: Arc<AtomicWaveform>,
-    pub osc_scale: Arc<AtomicF32>,
+    pub osc1: Osc,
+    pub osc2: Osc,
+    pub osc3: Osc,
+    // pub osc_active: Arc<AtomicBool>,
+    // pub osc_waveform: Arc<AtomicWaveform>,
+    // pub osc_scale: Arc<AtomicF32>,
 }
 
 impl Keyboard {
@@ -163,17 +209,19 @@ impl Keyboard {
         let release = Arc::new(AtomicF32::new(0.1));
         let release_clone = Arc::clone(&release);
 
-        let osc_active = Arc::new(AtomicBool::new(false));
-        let osc_active_clone = Arc::clone(&osc_active);
+        // TODO: Make arcs or something
+        let (osc1_clone, osc1) = Osc::new(true, Waveform::Sin, 1.0);
+        let (osc2_clone, osc2) = Osc::new(false, Waveform::Sin, 1.0);
+        let (osc3_clone, osc3) = Osc::new(false, Waveform::Sin, 1.0);
 
-        let osc_frequency = Arc::new(AtomicF32::new(10.0));
-        let osc_frequency_clone = Arc::clone(&osc_frequency);
+        // let osc_active = Arc::new(AtomicBool::new(false));
+        // let osc_active_clone = Arc::clone(&osc_active);
 
-        let osc_waveform = Arc::new(AtomicWaveform::new(Waveform::Sin));
-        let osc_waveform_clone = Arc::clone(&osc_waveform);
+        // let osc_waveform = Arc::new(AtomicWaveform::new(Waveform::Sin));
+        // let osc_waveform_clone = Arc::clone(&osc_waveform);
 
-        let osc_scale = Arc::new(AtomicF32::new(1.0));
-        let osc_scale_clone = Arc::clone(&osc_scale);
+        // let osc_scale = Arc::new(AtomicF32::new(1.0));
+        // let osc_scale_clone = Arc::clone(&osc_scale);
 
         let synth = Synthesizer::new(
             gain_clone,
@@ -182,10 +230,12 @@ impl Keyboard {
             decay_clone,
             sustain_clone,
             release_clone,
-            osc_active_clone,
-            osc_frequency_clone,
-            osc_waveform_clone,
-            osc_scale_clone,
+            osc1_clone,
+            osc2_clone,
+            osc3_clone,
+            // osc_active_clone,
+            // osc_waveform_clone,
+            // osc_scale_clone,
         );
 
         Self {
@@ -196,10 +246,12 @@ impl Keyboard {
             decay,
             sustain,
             release,
-            osc_active,
-            osc_frequency,
-            osc_waveform,
-            osc_scale,
+            osc1,
+            osc2,
+            osc3,
+            // osc_active,
+            // osc_waveform,
+            // osc_scale,
         }
     }
 

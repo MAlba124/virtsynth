@@ -1,14 +1,75 @@
+/*
+ * Copyright (C) 2024 Marcus L. Hanestad  <marlhan@proton.me>
+ *
+ * VirtSynth is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * VirtSynth is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with VirtSynth .  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::sync::atomic::Ordering;
 
-use eframe::egui::{self, DragValue, Margin, Theme};
+use eframe::egui::{self, DragValue, Margin, Theme, Ui};
 use knob::Knob;
 
 use crate::{
-    keyboard::{Key, KeyBitflags, Keyboard},
+    keyboard::{Key, KeyBitflags, Keyboard, Osc},
     waveform::Waveform,
 };
 
 mod knob;
+
+fn osc_ui(ui: &mut Ui, osc: &mut Osc, label: &str) {
+    egui::Frame::default()
+        .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+        .inner_margin(Margin::same(5.0))
+        .rounding(ui.visuals().widgets.noninteractive.rounding)
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                let mut active = osc.active.load(Ordering::Acquire);
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut active, label);
+                });
+                osc.active.store(active, Ordering::Release);
+
+                ui.columns(2, |columns| {
+                    columns[0].vertical_centered(|ui| {
+                        if !active {
+                            ui.disable();
+                        }
+
+                        let mut gain = osc.gain.load(Ordering::Acquire);
+                        ui.label("Volume");
+                        ui.add(Knob::new(&mut gain, 0.0..=1.0, 0.01));
+                        ui.add(DragValue::new(&mut gain).range(0.0..=1.0).speed(0.01));
+                        osc.gain.store(gain, Ordering::Release);
+                    });
+
+                    columns[1].vertical(|ui| {
+                        if !active {
+                            ui.disable();
+                        }
+
+                        ui.label("Waveform");
+                        let mut osc_wave = osc.waveform.load(Ordering::Acquire);
+                        ui.radio_value(&mut osc_wave, Waveform::Sin, "Sine");
+                        ui.radio_value(&mut osc_wave, Waveform::Square, "Square");
+                        ui.radio_value(&mut osc_wave, Waveform::Saw, "Saw");
+                        ui.radio_value(&mut osc_wave, Waveform::Triangle, "Triangle");
+                        osc.waveform.store(osc_wave, Ordering::Release);
+                    });
+                });
+            });
+        });
+}
 
 pub struct VirtSynth {
     keyboard: Keyboard,
@@ -80,11 +141,11 @@ impl eframe::App for VirtSynth {
                             ui.label("Master");
                             ui.columns(1, |columns| {
                                 columns[0].vertical_centered(|ui| {
-                                    ui.label("Gain");
+                                    ui.label("Volume");
                                     let mut gain = self.keyboard.gain.load(Ordering::Acquire);
-                                    ui.add(Knob::new(&mut gain));
+                                    ui.add(Knob::new(&mut gain, 0.0..=1.0, 0.01));
                                     let mut gain_perc = (gain * 100.0) as u8;
-                                    ui.add(DragValue::new(&mut gain_perc ).speed(1).suffix("%"));
+                                    ui.add(DragValue::new(&mut gain_perc).speed(1).suffix("%"));
                                     gain = gain_perc as f32 / 100.0;
                                     self.keyboard.gain.store(gain, Ordering::Release);
                                 });
@@ -94,61 +155,17 @@ impl eframe::App for VirtSynth {
 
                 ui.end_row();
 
-                egui::Frame::default()
-                    .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
-                    .inner_margin(Margin::same(5.0))
-                    .rounding(ui.visuals().widgets.noninteractive.rounding)
-                    .show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            let mut osc = self.keyboard.osc_active.load(Ordering::Acquire);
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut osc, "");
-                                ui.label("Oscillator");
-                            });
-                            self.keyboard.osc_active.store(osc, Ordering::Release);
-
-                            ui.columns(3, |columns| {
-                                columns[0].vertical_centered(|ui| {
-                                    if !osc {
-                                        ui.disable();
-                                    }
-
-                                    let mut freq = self.keyboard.osc_frequency.load(Ordering::Acquire);
-                                    ui.label("Frequency");
-                                    ui.add(Knob::new(&mut freq).range(1.0..=300.0).speed(1.0));
-                                    ui.add(DragValue::new(&mut freq).range(1.0..=300.0).speed(0.5).suffix("Hz"));
-                                    self.keyboard.osc_frequency.store(freq, Ordering::Release);
-                                });
-
-                                columns[1].vertical_centered(|ui| {
-                                    if !osc {
-                                        ui.disable();
-                                    }
-
-                                    let mut scale = self.keyboard.osc_scale.load(Ordering::Acquire);
-                                    ui.label("Scale");
-                                    ui.add(Knob::new(&mut scale));
-                                    ui.add(DragValue::new(&mut scale).range(0.0..=1.0).speed(0.01));
-                                    self.keyboard.osc_scale.store(scale, Ordering::Release);
-                                });
-
-                                columns[2].vertical(|ui| {
-                                    if !osc {
-                                        ui.disable();
-                                    }
-
-                                    ui.label("Waveform");
-                                    let mut osc_wave =
-                                        self.keyboard.osc_waveform.load(Ordering::Acquire);
-                                    ui.radio_value(&mut osc_wave, Waveform::Sin, "Sine");
-                                    ui.radio_value(&mut osc_wave, Waveform::Square, "Square");
-                                    self.keyboard
-                                        .osc_waveform
-                                        .store(osc_wave, Ordering::Release);
-                                });
-                            });
-                        });
+                ui.columns(3, |colums| {
+                    colums[0].horizontal(|ui| {
+                        osc_ui(ui, &mut self.keyboard.osc1, "Oscillator 1");
                     });
+                    colums[1].horizontal(|ui| {
+                        osc_ui(ui, &mut self.keyboard.osc2, "Oscillator 2");
+                    });
+                    colums[2].horizontal(|ui| {
+                        osc_ui(ui, &mut self.keyboard.osc3, "Oscillator 3");
+                    });
+                });
 
                 ui.end_row();
 
@@ -163,25 +180,25 @@ impl eframe::App for VirtSynth {
                                 columns[0].vertical_centered(|ui| {
                                     let mut attack = self.keyboard.attack.load(Ordering::Acquire);
                                     ui.label("Attack");
-                                    ui.add(Knob::new(&mut attack));
+                                    ui.add(Knob::new(&mut attack, 0.0..=1.0, 0.01));
                                     self.keyboard.attack.store(attack, Ordering::Release);
                                 });
                                 columns[1].vertical_centered(|ui| {
                                     let mut decay = self.keyboard.decay.load(Ordering::Acquire);
                                     ui.label("Decay");
-                                    ui.add(Knob::new(&mut decay));
+                                    ui.add(Knob::new(&mut decay, 0.0..=1.0, 0.01));
                                     self.keyboard.decay.store(decay, Ordering::Release);
                                 });
                                 columns[2].vertical_centered(|ui| {
                                     let mut sustain = self.keyboard.sustain.load(Ordering::Acquire);
                                     ui.label("Sustain");
-                                    ui.add(Knob::new(&mut sustain));
+                                    ui.add(Knob::new(&mut sustain, 0.0..=1.0, 0.01));
                                     self.keyboard.sustain.store(sustain, Ordering::Release);
                                 });
                                 columns[3].vertical_centered(|ui| {
                                     let mut release = self.keyboard.release.load(Ordering::Acquire);
                                     ui.label("Release");
-                                    ui.add(Knob::new(&mut release));
+                                    ui.add(Knob::new(&mut release, 0.0..=1.0, 0.01));
                                     self.keyboard.release.store(release, Ordering::Release);
                                 });
                             });
